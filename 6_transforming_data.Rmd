@@ -1,0 +1,228 @@
+---
+title: 'Practicum 6: Cleaning and Transforming Data'
+author: 'Data Science for Biomedical Informatics (BMIN503/EPID600)'
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+        collapsed: true
+        smooth_scroll: true
+    depth: 3 
+    theme: paper 
+    highlight: tango
+---
+
+```{r set-options, echo=FALSE, cache=FALSE}
+options(width = 400)
+```    
+
+
+***
+Packages to install for this practicum:
+```{r eval=FALSE}
+install.packages("tidyverse")
+```
+***
+We will work on cleaning and transforming data that is in tabular format. The operations covered are routinely performed on data to become familiar with it, make decisions about how best to use the data to answer questions of interest, and format it accordingly. Before getting to manipulation itself, we will cover some other common and useful R functions. The dataset used below has a data dictionary [here](https://github.com/HimesGroup/BMIN503/blob/master/DataFiles/NHANES_2007to2008_DataDictionary.md).
+
+### Summarizing Data
+We have already discussed some ways to get an overall sense of what a data frame contains, including using `str()`, `summary()`, `head()`, and `table()`.
+
+```{r eval=TRUE}
+nhanes <- read.csv(url("https://raw.githubusercontent.com/HimesGroup/BMIN503/master/DataFiles/NHANES_2007to2008.csv"), header=TRUE)
+str(nhanes)
+head(nhanes, n=20) #First n lines
+object.size(nhanes) #To see how large a dataset is before choosing tools to analyze
+print(object.size(nhanes), units="Mb")
+```
+
+The `summary()` function uses `quantile()` on continuous variables and `table()` on categorical ones, functions you can employ individually on specific variables. Here are examples of how these functions can be used:
+
+```{r eval=TRUE}
+quantile(nhanes$RIDAGEYR, na.rm=TRUE) #To get quantiles
+quantile(nhanes$RIDAGEYR, na.rm=TRUE, probs=c(0, .33, .66, 1)) #change cut sizes
+table(nhanes$DMDEDUC2)
+table(nhanes$DMDEDUC2, useNA="ifany") #To get a sense of values a variable can take and whether any look off
+table(nhanes$RIAGENDR, nhanes$DMDEDUC2) #2D tables to compare variables
+```
+
+### Subsetting
+We have discussed how to access subsets of data using indexes and simple conditions. To extend our capacity to subset data, we can use the `&` (and) and `|` (or) operators to make compound statements. When getting a subset of data that meets a condition, using the `which` command is helpful to return index values that do not include NAs.
+```{r, eval=TRUE}
+nhanes.male.adult <- nhanes[nhanes$RIAGENDR==1 & nhanes$RIDAGEYR>=18, ]
+nhanes.white.black <- nhanes[nhanes$RIDRETH1 %in% c(3,4), ] 
+nhanes.nocollege <- nhanes[nhanes$DMDEDUC2 <= 3, ]
+table(nhanes.nocollege$DMDEDUC2, useNA="ifany")
+nhanes.nocollege.2 <- nhanes[which(nhanes$DMDEDUC2 <= 3), ] #which does not include NAs
+table(nhanes.nocollege.2$DMDEDUC2, useNA="ifany")
+```
+
+### Dates
+We've discussed the utility of adding dates to files to indicate when downloads or analyses were performed. Dates are sometimes added as a variable type. To get the current date and time in R as a character, use `date()`. To get a date as a class of its own (i.e. Date), use `Sys.Date()`. The latter can be formatted in various ways using the `format()` function, or with the use of specific functions for dates. Here are some basics on how to use dates in R. A nice package to use if you are working extensively with dates is [`lubridate`](https://lubridate.tidyverse.org/).
+```{r eval=TRUE}
+d = Sys.Date()
+d
+format(d, "%A, %b %d, %Y")
+format(d, "%m/%d/%y")
+weekdays(d)
+```
+
+### Missing Data
+As we've discussed previously, a common task during data analysis is to identify missing values. By default, these are represented as `NA` in R and can be identified with the `is.na()` function. 
+```{r, eval=TRUE}
+x <- c(1:3, NA, 5:7, NA)
+x
+is.na(x)
+!is.na(x)
+x[!is.na(x)]
+sum(is.na(nhanes$INDHHIN2))
+```
+
+### Editing Text
+When changing variable names or levels/entries, we often have to change text, rather than numerical values. Several functions are helpful to edit text:
+
+* To change letter case, use `tolower()` or `toupper()` 
+* To separate text based on a character use `strsplit()`
+* To substitute characters for others use `gsub()`
+* To find characters by matching to a pattern, use `grep()`
+* To join text together, use `paste()`
+
+```{r eval=TRUE}
+names(nhanes)
+names(nhanes) <- toupper(names(nhanes))#try tolower()
+names(nhanes)
+
+t <- "A short sample sentence."
+strsplit(t, " ")
+
+x <- c("X_1", "X_2", "X_3_1", "X_3_2", "X4", "X5")
+x
+gsub("_", "", x)
+sub("_", "", x) #Replaces first instance only
+x <- c("X.1", "X.2", "X.3.1", "X.3.2", "X4", "X5")
+gsub("[.]", "", x) #The "." needs to be escaped
+sub("[.]", "", x) #Replaces first instance only
+
+#Find the p-value entries
+y <- c("GeneID", "FC1", "pvalue1", "FC2", "pvalue2", "FC3", "pvalue3", "overall.FC", "overall.pvalue")
+grep("pvalue", y) #Returns a vector of matches
+grep("pvalue", y, value=TRUE) #Returns a vector of entries that had match
+y[grep("pvalue", y)] 
+grepl("pvalue", y) #Returns a TRUE/FALSE vector of length(y)
+
+paste("Some", "text", "entries.") #concatenate with space as delimiter
+x
+paste(x, collapse=" ") #concatenate
+paste0("O", "n", "e", " ", "word") #Pastes with sep=""
+
+#For example, to generate several file names while iterating in a for loop
+for (i in 1:5){
+    file.name <- paste0("Page", toString(i), ".txt")
+    print(file.name)
+}
+```
+
+
+### The Tidyverse
+Most of the commands we've used so far are `base` commands in R, meaning they are part of a package that is installed along with R. A more recent set of packages refered to as `tidyverse` (developed by Hadley Wickham and others with RStudio support) are widely used now. Among these packages is [`dplyr()`](https://cran.r-project.org/web/packages/dplyr/vignettes/dplyr.html), which facilitates managing of data frames. Users find it intuitive because its syntax is simpler than that of built-in R commands, and it is faster at performing operations. Because `dplyr` can be used with `data.table` to manipulate large tables, it is a suitable program for analyzing big data frames efficiently. We will go over common `dplyr` commands below, and you can review this [`dplyr()` cheatsheet](https://www.rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf) to learn about additional commands that are useful for manipulating data tables.
+
+
+#### Renaming variables
+Renaming of variables is performed with the `rename` verb, and an indication of `new.variable.name=old.variable.name` pairs after the data.frame in question.
+
+```{r eval=TRUE, message=FALSE}
+library(dplyr)
+nhanes <- rename(nhanes, id=SEQN, gender=RIAGENDR, age=RIDAGEYR, race=RIDRETH1, education=DMDEDUC2, income=INDHHIN2, health.provider=HUQ040)
+head(nhanes)
+```
+
+#### Creating new variables
+The `mutate` verb is used to add a new column by providing a name and then a formula to define the new column.
+```{r eval=TRUE}
+nhanes <- mutate(nhanes, gender = factor(gender, levels=c(1, 2), labels=c("male", "female"))) #proc format
+head(nhanes) #Replaced existing column as factor
+nhanes <- mutate(nhanes, adult.status = factor(age>=18, labels=c("child", "adult")))
+head(nhanes) #Added a new column
+```
+
+
+#### Subseting rows
+The `filter` verb is used to choose rows according to a condition using variables of the data frame in question.
+```{r eval=TRUE}
+nhanes.adult <- filter(nhanes, age >= 18)
+head(nhanes.adult)
+
+nhanes.adult.m <- filter(nhanes, age >= 18 & gender == "male")
+head(nhanes.adult.m)
+```
+
+#### Column selection
+The `select` verb is used to choose columns, by indicating which column(s) to select after the data.frame in question.
+```{r eval=TRUE}
+head(select(nhanes, age))
+head(select(nhanes, age:education)) #Can use names for ranges with select function
+head(select(nhanes, -(age:race))) #Can exclude ranges with "-"
+```
+
+#### Sorting data
+Rows can be ordered according a variable with the `arrange` verb.
+```{r eval=TRUE}
+nhanes.ordered <- arrange(nhanes, education)#proc sort
+head(nhanes.ordered)
+tail(nhanes.ordered)
+nhanes.ordered <- arrange(nhanes, desc(education)) #Descending order
+head(nhanes.ordered)
+tail(nhanes.ordered)
+```
+
+#### Summarizing data
+The `summarize` verb will collapse a variable (or set of variables) according to a formula provided, and provide a new data frame containing the result of applying the formula.
+```{r eval=TRUE}
+summarize(nhanes, age=mean(age))#proc means
+nhanes.adult.child <- group_by(nhanes, adult.status)#class statement
+summarize(nhanes.adult.child, age=mean(age))
+```
+
+
+#### Pipe operator
+A useful way to perform several operations with `dplyr` is to use the pipe operator `%>%`, which will chain commands without saving several intermediate tables and without having to keep explicitly referring to a data frame(s).
+```{r eval=TRUE}
+nhanes %>% 
+    mutate(adult.status = factor(age>=18, labels=c("child", "adult"))) %>% 
+    group_by(adult.status) %>% 
+    summarize(age=mean(age))
+```
+
+#### Joining data frames
+A common operation is to combine two data tables based on a common ID or set of variables into a single table. Such tables might contain data for the same set of subjects collected at different time points or from different sources. For illustrative purposes, we will first create a dummy data frame that contains the same IDs as `nhanes`.
+```{r eval=TRUE}
+set.seed(1234)
+varA <- sample(c(1:4, NA), nrow(nhanes), replace=TRUE, prob=c(rep(0.24, 4), .04))
+table(varA, useNA="ifany")
+dataframeA <- data.frame(cbind(nhanes$id, varA))
+names(dataframeA) <- c("id", "varA")
+head(dataframeA)
+```
+
+##### left_join
+```{r eval=TRUE}
+join1 <- left_join(nhanes[, c(1:6)], dataframeA)
+head(join1)
+dim(join1)
+```
+
+##### inner_join
+```{r eval=TRUE}
+join2 <- inner_join(nhanes[, c(1:6)], dataframeA[c(1:1000), ])
+head(join2)
+dim(join2)
+tail(join2)
+```
+
+##### full_join
+```{r eval=TRUE}
+join3 <- full_join(nhanes[, c(1:6)], dataframeA[c(1:1000), ])
+head(join3)
+dim(join3)
+tail(join3)
+```

@@ -1,0 +1,158 @@
+---
+title: 'Practicum 7: Descriptive Statistics'
+author: 'Data Science for Biomedical Informatics (BMIN503/EPID600)'
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+        collapsed: true
+        smooth_scroll: true
+    depth: 3 
+    theme: paper 
+    highlight: tango
+---
+
+```{r set-options, echo=FALSE, cache=FALSE, message=FALSE}
+options(width = 400)
+```    
+
+***
+New packages to install for this practicum:
+```{r eval=FALSE}
+install.packages("datasets")
+```
+***
+
+Functions related to obtaining summary statistics and performing data manipulation that help us perform exploratory analysis are covered below. As was the case in practicum 6, the operations we will cover are routinely used to become familiar with datasets and make decisions about how best to use data to answer questions of interest.
+
+Several statistical analysis tools cannot handle missing data, and a common way to deal with this is to keep subsets of "complete" data. R has a built-in function to keep individual rows with no missing variables, `complete.cases()`.
+```{r, eval=TRUE, message=FALSE}
+x <- c(1:3, NA, 5:7, NA)
+y <- c(NA, letters[2:8])
+z <- cbind(x, y)
+z
+complete.cases(z)
+z[complete.cases(z), ]
+
+#With our NHANES dataset
+library(dplyr)
+nhanes <- read.csv(url("https://raw.githubusercontent.com/HimesGroup/BMIN503/master/DataFiles/NHANES_2007to2008.csv"), header=TRUE)
+complete.nhanes <- nhanes %>%
+                        filter(complete.cases(.))
+dim(nhanes)
+dim(complete.nhanes)
+```
+
+### Summary Statistics
+Let's clean the nhanes dataset before proceeding.
+```{r, eval=TRUE}
+nhanes <- nhanes %>%
+            rename(id=SEQN, gender=RIAGENDR, age=RIDAGEYR, race=RIDRETH1, education=DMDEDUC2, income=INDHHIN2, health.provider=HUQ040, asthma=MCQ010) %>%
+            mutate(gender=factor(gender, levels=c(1, 2), labels=c("male", "female"))) %>%
+            mutate(race=factor(race, levels=c(3, 1, 2, 4, 5), labels=c("white", "MexicanAmerican", "Hispanic", "black", "other"))) %>%
+            #Changing definition of asthma so that cases==1, controls==0, else NA
+            mutate(asthma=ifelse(asthma %in% c(7,9), NA, ifelse(asthma==2, 0, 1)))
+```
+            
+            
+In addition to using this external dataset, we will use data that is part of the `datasets` package (see more using `library(help = "datasets")`). Specifically, we will use `airquality`, a sampling of New York Air Quality measurements from May-Sep 1973.
+
+The most common descriptive statistics that are retrived for variables (e.g., mean, standard deviation, quantiles, median, standard error) have built-in R functions. While functions like `summary` provide several of these values, others can be retrieved individually or with help from `dplyr`.
+
+```{r eval=TRUE}
+library(datasets)
+str(airquality)
+mean(airquality$Ozone, na.rm=TRUE)
+sd(airquality$Ozone, na.rm=TRUE)
+quantile(airquality$Ozone, na.rm=TRUE)
+
+summarise(airquality, ozone = mean(Ozone, na.rm=TRUE))
+
+airquality %>%
+    select(Ozone:Temp) %>%
+    summarise_all(mean, na.rm=TRUE)
+
+airquality %>%
+    select(Ozone:Temp) %>%
+    summarise_all(funs(mean(., na.rm=TRUE), sd(., na.rm=TRUE)))
+```
+
+### Relationships Among Variables
+In addition to gathering statistics for individual variables, it is common practice to look at how individuals are related to one another, or get statistics for groupings of variable values. The `group_by()` function is helpful to divide a data frame into groupings of factor variable levels and then get statistical measures for each group with `dplyr`.
+```{r, eval=TRUE}
+airquality %>%
+    group_by(Month) %>%
+    summarise(ozone = mean(Ozone, na.rm=TRUE))
+
+nhanes %>%
+    group_by(asthma) %>%
+    summarise(n())
+
+nhanes %>%
+    group_by(asthma) %>%
+    summarise(count = n()) %>%
+    mutate(prop = count/sum(count))
+```
+A few more examples of using dplyr to get summary data.
+```{r, eval=TRUE}
+nhanes %>%
+    filter(income %in% c(1:10, 14, 15)) %>%
+    mutate(income.short = cut(income, breaks=c(0, 5, 10, 15), labels=c("<$25K", "$25-75K", ">$75K"))) %>%
+    count(gender, income.short)
+
+nhanes %>% 
+    filter(health.provider %in% c(1:5)) %>%
+    group_by(health.provider) %>% 
+    summarize(age=mean(age, na.rm=TRUE))
+```
+
+
+### Basic Descriptive Plots
+We will use `ggplot`, a general and customizable plotting function of the `ggplot2` package to create plots. There is a learning curve to become familiar with `ggplot` and its advanced capapbilities, but the time investment is worth it to create publication-ready graphics. The official [`ggplot2`](http://docs.ggplot2.org/current/) documentation provides an idea of how much this package can do. Today we will use it to create basic plots. In general, we first tell `ggplot` what data we are using, provide aesthetic mappings, and then tell it how to represent this data visually.
+
+To get a sense of the distribution of a categorical variable, use **barcharts**.
+```{r, eval=TRUE}
+library(ggplot2)
+ggplot(data=nhanes, aes(x=gender)) + #Load data, specify variables
+    geom_bar() #Add a visual layer that is a barplot
+
+ggplot(data=nhanes, aes(x=race)) +
+    geom_bar()
+```
+
+To get a sense of the distribution of a continuous variable, use **histograms**.
+```{r, eval=TRUE}
+ggplot(data=nhanes, aes(x=age)) +
+    geom_histogram(binwidth = 3)
+```
+
+To look at how a binary/categorical variable changes by a binary/categorical variable, use **barplots** that are split by one of the variables.
+```{r, eval=TRUE}
+ggplot(data=nhanes, aes(x=race, fill=gender)) +
+    geom_bar()
+
+#Proportions of each "fill" category within each x-axis category:
+ggplot(data=nhanes, aes(x=race, fill=gender)) +
+    geom_bar(position="fill")
+
+#Counts for each "fill" category side-by-side for each x-axis category:
+ggplot(data=nhanes, aes(x=race, fill=gender)) +
+    geom_bar(position="dodge")
+```
+
+To look at how a continuous variable changes by a binary or categorical variable, use **boxplots**.
+```{r, eval=TRUE}
+ggplot(data=airquality, aes(x=factor(Month), y=Ozone)) +
+    geom_boxplot()
+```
+
+To see how two continuous variables are related to each other, use a **scatterplots**.
+```{r, eval=TRUE}
+ggplot(data=airquality, aes(x=Wind, y=Ozone)) +
+    geom_point()
+
+ggplot(data=airquality, aes(x=Solar.R, y=Ozone)) +
+    geom_point()
+```
+
+

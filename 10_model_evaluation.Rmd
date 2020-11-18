@@ -1,0 +1,96 @@
+---
+title: "Practicum 10: Model Evaluation"
+author: "Data Science for Biomedical Informatics (BMIN503/EPID600)"
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+        collapsed: true
+        smooth_scroll: true
+    depth: 3 
+    theme: paper 
+    highlight: tango
+---
+
+```{r global options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```   
+***
+New packages to install for this practicum:
+```{r, eval=FALSE}
+install.packages("GGally")
+install.packages("boot")
+install.packages("pROC")
+```
+***
+
+We will create logistic regression models to predict titanic survivorship using a dataset about [Titanic passengers](http://biostat.mc.vanderbilt.edu/wiki/pub/Main/DataSets/titanic.html) obtained from a repository hosted by [Vanderbilt Biostats](http://biostat.mc.vanderbilt.edu/wiki/Main/DataSets). The data dictionary to understand file variables is [here](https://github.com/HimesGroup/BMIN503/blob/master/DataFiles/titanic3.md). First, let's get the dataset and clean it. To look quickly at the relationships among variables graphically, we will use a command from the `GGally` package, so install that package if necessary.
+
+```{r eval=TRUE, message=FALSE}
+library(tidyverse)
+library(GGally)
+titanic <- read.csv(url("https://raw.githubusercontent.com/HimesGroup/BMIN503/master/DataFiles/titanic3.csv"), header=TRUE)
+titanic <- titanic %>%
+    select(survived, pclass, sex, age, sibsp, parch) %>%
+    filter(complete.cases(.)) %>%
+    mutate(survived=factor(survived, levels=c(0, 1), labels=c("died", "lived")))
+str(titanic)
+ggpairs(titanic)
+ggpairs(titanic, mapping=aes(col=survived), columns=c("survived", "pclass", "sex", "age"))
+```
+
+
+### Logistic regression 
+We create the logistic regression model and then obtain the probabilities of surviving according to the training data.
+```{r eval=TRUE}
+titanic.glm <- glm(survived~., data=titanic, family=binomial(logit))
+summary(titanic.glm)
+glm.pred <- predict(titanic.glm, titanic, type="response")
+```
+
+### Cross-Validation
+When independent data is not available to test a model, we can use cross-validation, which consists of using portions of the data at a time to train and test a model.  Prediction error is better estimated using cross-validation than on the same data used to train a model, where there is a risk of having an overestimate due to overfitting.
+
+There is a useful function called `cv.glm` which will get a prediction error estimate from a cross-validation of a dataset, but it doesn't produce the probabilities needed for an AUC curve. Below, we perform cross-validation via a short script.
+```{r eval=TRUE, message=FALSE}
+library(boot)
+cost <- function(r, pi=0) mean(abs(r-pi) > 0.5)
+titanic.cv.glm <- cv.glm(titanic, titanic.glm, cost, K=10)
+summary(titanic.cv.glm)
+titanic.cv.glm$delta #cross-validation estimate of prediction error
+
+#K-Fold Cross Validation
+N = nrow(titanic)
+K = 10
+set.seed(1234)
+s = sample(1:K, size=N, replace=T)
+pred.outputs.glm <- vector(mode="numeric", length=N)
+obs.outputs <- vector(mode="numeric", length=N)
+offset <- 0
+for(i in 1:K){
+	train <- filter(titanic, s != i)
+	test <- filter(titanic, s == i)
+    obs.outputs[1:length(s[s==i]) + offset] <- test$survived
+    
+    #GLM train/test
+	glm <- glm(survived~., data=train, family=binomial(logit))
+    glm.pred.curr <- predict(glm, test, type="response")
+    pred.outputs.glm[1:length(s[s==i]) + offset] <- glm.pred.curr
+
+	offset <- offset + length(s[s==i])
+}
+```
+
+
+### ROC Curves
+ROC Curves provide an intuitive display of how well a predictive test performs over all possible thresholds that can be used to divide two outcomes. One R package that can create ROC curves and compute associated areas under the ROC curves (AUCs) and confidence intervals is `pROC`.
+```{r eval=TRUE, message=FALSE}
+library(pROC)
+roc(titanic$survived, glm.pred, ci=TRUE)
+plot.roc(titanic$survived, glm.pred, ci=TRUE)
+plot.roc(obs.outputs, pred.outputs.glm, col="red", add=TRUE)
+glm.roc <- plot.roc(titanic$survived, glm.pred, col="red", lwd=3, grid=TRUE)
+plot(ci.thresholds(glm.roc), col="grey")
+legend("bottomright", legend=c("Training", "Cross-Validation"), col=c("black", "red"), lwd=2)
+```
+

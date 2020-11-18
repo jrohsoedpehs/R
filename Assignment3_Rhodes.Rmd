@@ -1,0 +1,107 @@
+---
+title: "Assignment 3"
+author: "Data Science for Biomedical Informatics (BMIN503/EPID600)"
+output: 
+  html_document:
+    toc: false 
+    depth: 3 
+    theme: paper 
+    highlight: tango
+---
+    
+```{r set-options, echo=FALSE, cache=FALSE}
+options(width = 400)
+```   
+***
+
+###Instructions
+- Download the Rmd version of this file
+- Complete the questions below in RStudio using the Rmd file as a template 
+- Replace text in brackets with your answers. (There is no need to keep the brackets).
+- Save the Rmd document as Assignment3_*YOUR LAST NAME*.Rmd
+- Create an HTML version using knitr
+- Turn in completed Assignment3_*YOUR LAST NAME*.html file in Canvas under Assignments -> Assignment 3
+- Your assignment **must** be in html format or it will not be graded
+- Grades will be assigned according to point scheme below and computed as a percentage of total possible points
+- Lateness policy: If an urgent and unforseen circumstance comes up and you need an extension to turn in an assignment, please contact Blanca and/or Sherrie as soon as possible. Unless there is an arrangement in place, late assignments will be scored as follows: 
+    - 25% of total score if 1 day late
+    - 50% of total score if 2 days late
+    - 75%  of total score if 3 days late
+    - Assignment will not be graded if 4 or more days late
+- DUE DATE: 10/5/18
+
+
+###Final Project - Repository
+1. Fork the [Final Project Repository](https://github.com/HimesGroup/BMIN503_Final_Project) to your GitHub account, and then pull this repository as a new project on your local computer by using the _Project_ menu in the upper-right-hand corner of RStudio, selecting a _New Project_, creating it via _Version Control_ -> _Git_ -> and entering your GitHub repository (remember to append `.git` to the copied `url`). You can now work on your final project from your computer, and easily push updates to your GitHub account, where the final version will be saved. A _Git_ tab will be available that you can use to _Pull_, _Commit_, and _Push_ changes between your local version and that on GitHub without having to use the command line. *(1 point for forking repository)*
+
+2. In 2-3 sentences, describe what question you will answer for your final project and what data will you use. There is a list of public data sources at the bottom of the [Optional Reading](https://github.com/HimesGroup/BMIN503/blob/master/Module1_Optional_Reading.Rmd) document that you can look through if you are having difficulty identifying public data. If you'd like help to pick a question, please let Blanca or Sherrie know soon. *(2 points)*
+
+
+I would like to create a decision tree that uses hospital data to create profiles for potential readmission based on certain fields like gender, insurance, elixhauser variables, etc.
+
+3. What three faculty/staff (name, title, division/department) have you met or are planning to meet to discuss your project? *(2 points)*
+
+Dr. Margo Brooks, Associate Professor of Nursing, CHOPR
+Mr. Jesse Chittams, Statistician, ONR
+Mr. Uchechukwu Ikeaba, Applied Statistician, ONR
+
+
+### Cleaning and Transforming data, Descriptive Statistics and Regression
+4. Install and load the `nycflights13` package to do this problem. This package includes the [flights](https://www.rdocumentation.org/packages/nycflights13/versions/1.0.0/topics/flights) dataset, which contains information on 336,776 flights that departed from New York City in 2013 and is often used to learn `dplyr` commands. If you need more guided practice with `dplyr`, beyond what we did in class, you can go through this [vignette](https://cran.r-project.org/web/packages/dplyr/vignettes/dplyr.html). Use `dplyr` to answer the following questions by inserting code below each bullet to provide the answer directly. *(10 points)*
+    + How many carriers departed NYC in 2013? Which carrier had the most departing flights?
+
+```{r eval=TRUE}
+install.packages("tidyverse")
+library("tidyverse")
+#On-time data for all flights that departed NYC (i.e. JFK, LGA or EWR) in 2013.
+#carriers <- group_by(flights, carrier)
+#carriers
+#summarize(carriers, count =n())
+```
+    16 Carriers
+    
+    + Of the flights that departed in June and July, how many unique tailnum contained the letter M or P?
+```{r eval=TRUE}
+flights %>%
+  select(month, tailnum) %>%
+  filter(month == 6 |month == 7)%>%
+  distinct(tailnum,.keep_all = FALSE) %>%
+  filter(grepl("M", tailnum)|grepl("P", tailnum))
+```
+    261 unique tailnums
+    
+    + What was the most popular destination each month?
+```{r eval=TRUE}
+flights %>%
+  select(month, dest) %>%
+  group_by(month,dest)%>%
+  summarize(count = n())%>%
+  arrange(desc(count))%>%
+  distinct(month, dest,.keep_all = FALSE)
+  
+  #filter(month == 6 |month == 7)%>%
+  #distinct(tailnum,.keep_all = FALSE) %>%
+  #filter(grepl("M", tailnum)|grepl("P", tailnum))
+```
+    
+    
+    + Was the mean departure delay time per carrier related to the total number of flights per carrier? The answer should show a plot and use one sentence to address this question qualitatively.
+    + Was the mean delay time for a given time of departure related to the time of departure? The answer should show a plot and use one sentence to address this question qualitatively.
+
+
+```{r eval=TRUE}
+install.packages("nycflights13")
+#install.packages("tidyverse")
+library(nycflights13) #use package
+library(tidyverse)
+tbl_df(flights)
+```
+
+5. Load the `MASS` package, which contains the  [birthwt](https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/birthwt.html) dataset, to answer the following questions. We will work toward identifying variables that are associated with low birthweight, both as a dichotomous outcome and a continuous one. HINT: The `MASS` package contains a `select` command that may compete with that from `dplyr`. If you have `dplyr` and `MASS` loaded simultaneously and want to use `dplyr`'s `select`, do it explicitly. For example, use `dplyr::select` rather than `select`. *(9 points)*
+    + Take a look at the `birthwt` dataset (e.g., using `str()`) to get a sense of variables it contains. We will use the variables `low` and `bwt` as outcomes and `age`, `race`, `smoke`, `ht`, `ptl` as predictors. Create a new dataset `birthwt.clean` containing only the variables we are interested in, where (1) the variables `low`, `ht`, and `ptl` are renamed `low.birth.wt`, `hypertension`, and `prem.labor`, respectively, (2) all integer categories (i.e., `low.birth.wt`, `race`, `smoke`, `hypertension`, `prem.labor`) are converted to factors with intuitive labels, (3) the `race` variable does not include the `other` category, and (4) the `ptl` variable is dichotomized into two levels based on a positive or negative history of previous premature labor. 
+    + Perform univariate analysis for the resulting `age` and `smoke` variables you created as predictors and `low.birth.wt` and `bwt` as outcomes. Include appropriate plots that look at the pairwise relationships between the outcomes and each predictor. Are there differences between the results for each outcome?
+    + Create multivariable regression models for `low.birth.wt` and `bwt` using `age`, `race`, `smoke`, `hypertension`, and `prem.labor` as predictors. What factors are significantly associated with the birth weight outcomes?
+
+
+
+

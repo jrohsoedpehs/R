@@ -1,0 +1,250 @@
+---
+title: 'Practicum 4: R Programming Basics II'
+author: 'Data Science for Biomedical Informatics (BMIN503/EPID600)'
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+        collapsed: true
+        smooth_scroll: true
+    depth: 3 
+    theme: paper 
+    highlight: tango
+---
+
+***
+
+In this practicum, we will continue to become familiar with R by learning about saving R objects, retrieving portions of data objects, and creating functions.
+
+### R Objects
+It can be convenient to save R objects without having to change them into some generic format so that they can be loaded quickly into R sessions. The `dput()` and `dget()` commands can be used to save and retrieve such objects, respectively. Data frames can be saved with these commands, rather than as tabular files so that metadata associated with them is saved as well. For example,
+```{r, eval=FALSE}
+x <- data.frame(V1 = c(1:5), V2 = rep("Y", 5))
+dput(x)
+dput(x, file = "x.R") 
+x.2 <- dget("x.R")
+x.2 
+```
+In cases when you'd like to save several R objects, you can use the `dump()` and `source()` commands instead.
+```{r, eval=TRUE}
+y <- c(1:10)
+z <- "Some text."
+dump(c("x", "y", "z"), file = "test_data.R")
+ls()
+rm(x, y, z)
+ls()
+source("test_data.R")
+ls()
+x
+y
+z
+```
+To remove all objects that are loaded, use `rm(list = ls())`.
+
+
+### Subsetting
+When working with data frames and other R objects, we often want to extract portions of them or at least look at a portion of the loaded object to ensure things look right. This can be done with a few approaches depending on the data type. Recall from last time that elements of a vector can be extracted with a single bracket:
+```{r, eval=TRUE}
+x <- c(1:5)
+x[5]
+```
+Elements of a list can be extracted with double brackets or using names if these exist. Names are helpful when dealing with large lists or data frames when it is difficult to remember the order of items/columns.
+```{r, eval=TRUE}
+x <- list(1, "a", c(1:5))
+x
+x[1] #Returns same class as original (i.e. a list)
+x[[1]] #Returns the contents of the first item
+x[[3]]
+y <- list("Item1"=c(1:4), "Item2"="Some text")
+y
+y$Item1 #Returns the contents of the first item
+y[[1]] #Same as y$Item1
+y[["Item1"]] #Same as y$Item1
+y["Item1"] #Returns same class as original. Same as y[1]
+y[["Some text"]]
+y$Item2
+```
+A difference between subsetting with `$` and `[[]]` is that the double brackets can be used to compute an index, while the entry after `$` must be an actual element name. 
+```{r, eval=TRUE}
+get.name <- "Item1"
+y[[get.name]] #returns variable item1 which is [1] 1 2 3 4 
+y$get.name    #looks for the literal name "item1" of a column in variable y
+```
+Note that `[]` can be used with a range (for 1D objects) or ranges (for 2D objects) of objects, while `[[]]` is used to extract single entries. If a sequence of values is passed to a double bracket, then an attempt will be made to recurse down levels.
+```{r, eval=TRUE}
+y[[c(1, 1)]]
+y[[1]][[1]]
+y$Item1[[2]]
+m <- matrix(c(1:6), 2, 3)
+m[1, 1]
+m[1, ]
+m[, 1]
+```
+Notice that with matrix subsetting, dimensionality of output objects is reduced by default. This can be changed with `drop` option:
+```{r, eval=TRUE}
+m[1, 1] #returns the value as a number, not a matrix
+m[1, 1, drop=FALSE] #returns the value as a matrix
+m[1, ]
+m[1, , drop=FALSE]
+```
+Another helpful way to select portions of a list is the use of the `%in%` operator.
+```{r, eval=TRUE}
+cities <- c("Juneau","Phoenix","Little_Rock","Sacramento","Denver","Hartford","Dover","Tallahassee","Atlanta","Honolulu","Boise","Springfield","Indianapolis","Des_Moines","Topeka","Frankfort","Baton_Rouge","Augusta","Annapolis","Boston","Lansing","St._Paul","Jackson","Jefferson_City","Helena","Lincoln","Carson_City","Concord","Trenton","Santa_Fe","Albany","Raleigh","Bismarck","Columbus","Oklahoma_City","Salem","Harrisburg","Providence","Columbia","Pierre","Nashville","Austin","Salt_Lake_City","Montpelier","Richmond","Olympia","Charleston","Madison","Cheyenne")
+visited <- c("Honolulu", "Nashville", "Boston", "Amherst", "San Diego")
+visited %in% cities #returns true false
+visited[visited %in% cities] #returns names that were true
+visited[!visited %in% cities] #returns names that were !true or false
+```
+
+#### Functions
+The above pieces of code can be run independently, but to reuse them (or pieces of code in general) efficiently, they should be put into functions. A `function()` is an R object of class _function_ that shares some characteristics with other objects: it can be passed as an argument to a _function_ and it can be within another _function_. To create a function, we specify what should be input, perform some computation on the input, and return an output. The structure of a function in R is the following:
+```{r, eval=FALSE}
+f <- function([arguments]){
+  
+  #Code to do something
+}
+```
+The arguments that get passed to `[arguments]` are called _formal_ arguments. They can be passed based on their position or by name. To avoid confusion, stick to the given order as much as possible and use names, especially for arguments that have default values. Here are some simple example functions to go over general structure of functions. We will learn more about functions throughout the course.
+```{r, eval=FALSE}
+add <- function(x, y){ #input is x and y
+  z <- x+y #computation perfomed
+  z #output - the default is that last thing in function gets returned
+}
+add(2, 3)
+add(2, 7)
+
+add(13, 3)
+
+is.negative <- function(x){
+  if(x < 0) TRUE else FALSE
+}
+is.negative(5)
+```
+Here are some things to notice about arguments using the `mean()` function. Call `?mean` and notice that it has one listed formal argument, `x` and two named arguments with default values. The `...` portion refers to arguments that are inherited from other methods or arguments that can be passed on to another method. We will not worry about that now.
+```{r, eval=TRUE}
+x <- c(1:20, NA, 21:50)
+mean(x) #Uses default values
+mean(x, na.rm=TRUE)
+mean(x, na.rm=TRUE, trim=0.1) #Note that order change of na.rm and trim doesn't affect outcome since names used
+```
+You can create a function using formal and named arguments as follows:
+```{r, eval=TRUE}
+s.calc <- function(x, y, a=1, b=2){ #input is x and y
+  #if the user does not provide a and b the default is 1 and 2
+  z <- a*x + b*y #computation perfomed
+  z #output - the default is that last thing in function gets returned
+
+}
+s.calc(1, 1) #same as s.calc(x=1,y=1)
+s.calc(1, 2, a=0)#not the same as s.calc(2,1, a=0)
+#is the same as s.calc(y=2, x=1, a=0)
+#explicitly list the variables if you want to change the order of the parameters
+
+s.calc(1, 2, b=0)
+s.calc(1, 2, a=0, b=0)
+```
+
+
+### Scoping
+Notice that `a` and `b` in the previous chunk have known values only within the function by typing `a` and `b` in the Console. If we set `a <- 10` before the function and re-run the code, the output is the same notice what changes:
+```{r, eval=TRUE}
+a <- 10
+s.calc(1, 2, a=0, b=0)#a=0 applies in function space but does not overwrite the global value a=10
+a
+```
+Now try these to emphasize the difference between the global and function environments:
+```{r, eval=TRUE}
+a <- 10
+s.calc <- function(x, y){ #input is x and y
+  z <- a*x + y 
+  z 
+}
+s.calc(1, 1)
+a
+s.calc <- function(x, y){ 
+  a = 0
+  z <- a*x + y 
+  z 
+}
+s.calc(1, 1)
+a
+```
+
+R uses _static scoping_ which means all objects used by a function must be visible in the environment in which the function is defined. Let's see what happens with the example mentioned during lecture.
+```{r, eval=TRUE}
+a <- 0
+b <- 1
+f <- function(x) {a*x + b}
+f(2)
+g <- function(x){
+    a <- 1
+    b <- 2
+    f(x)
+}
+g(2)
+c(a, b)
+g <- function(x){
+    a <- 1
+    b <- 2
+    print(c(a,b))
+    print(f(x)) #Will compute f(x) in the environment where f(x) is defined
+    a*x + b #The same function as f(x) except computed within this environment
+}
+g(2)
+c(a, b)
+```
+
+
+R allows functions to be defined within functions, which means that a function can return a function and there can be several levels of environments. 
+```{r, eval=TRUE}
+s.calc.fun <- function(x){ #input is x and y
+  out.fun <- function(y){
+    2*x + y 
+  } 
+  out.fun #output is now a function
+}
+f1 <- s.calc.fun(1)
+f2 <- s.calc.fun(2)
+f1
+f2
+f1(1)
+f2(1)
+```
+To see what is within a function's environment, you can use:
+```{r, eval=TRUE}
+ls(environment(f1))
+get("x", environment(f1))
+get("out.fun", environment(f1))
+environment(s.calc.fun)
+ls(environment(s.calc.fun)) #Same as ls()
+```
+Assignment operators
+
+Recall that `<-` and `=` can behave differently. When defining variables in function argument lists, use `=` to avoid setting global variables. For example, compare:
+```{r, eval=TRUE}
+x <- 1:4
+y <- c("a", "b", "c", "d")
+single <- list(x=1, y="a")
+single
+x
+y
+single <- list(x<-1, y<-"a")
+single
+x
+y
+```
+
+
+### Symbol Binding
+The order in which R looks for symbols can be seen with `search()`. Note that `.GlobalEnv` refers to the global environment, which is the set objects that the user has called in for a given session. Packages are loaded in a specific order: the most recent packages are loaded such that their objects replace pre-existing ones.
+```{r, eval=TRUE}
+search()
+```
+
+```{r, eval=TRUE}
+#explicitly list the package of the function
+base::mean(c(1:25))
+
+
+```
+

@@ -1,0 +1,162 @@
+---
+title: "Practicum 11: Machine Learning - Supervised Methods"
+author: "Data Science for Biomedical Informatics (BMIN503/EPID600)"
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+        collapsed: true
+        smooth_scroll: true
+    depth: 3 
+    theme: paper 
+    highlight: tango
+---
+
+```{r global options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```   
+***
+New packages to install for this practicum:
+```{r, eval=FALSE}
+install.packages("e1071")
+install.packages("randomForest")
+install.packages("glmnet")
+```
+***
+
+We will create predictive models with SVM, random forests, and Lasso to predict titanic survivorship using the dataset about [Titanic passengers](http://biostat.mc.vanderbilt.edu/wiki/pub/Main/DataSets/titanic.html) used last time. The data dictionary to understand file variables is [here](https://github.com/HimesGroup/BMIN503/blob/master/DataFiles/titanic3.md). 
+
+```{r eval=TRUE, message=FALSE}
+library(tidyverse)
+titanic <- read.csv(url("https://raw.githubusercontent.com/HimesGroup/BMIN503/master/DataFiles/titanic3.csv"), header=TRUE)
+titanic <- titanic %>%
+    select(survived, pclass, sex, age, sibsp, parch) %>%
+    filter(complete.cases(.)) %>%
+    mutate(survived = factor(survived, levels=c(0, 1), labels=c("died", "lived"))) %>%
+    mutate(pclass = factor(pclass, levels=c(1, 2, 3), labels=c("first", "second", "third")))
+str(titanic)
+
+x.factors <- model.matrix(titanic$survived ~ titanic$sex + titanic$pclass)[, -1]
+titanic.df <- cbind(titanic[, c("survived", "age", "sibsp", "parch")], x.factors)
+names(titanic.df)[5:7] <- c("sexmale", "pclass2", "pclass3")
+x <- as.matrix( cbind(titanic[, c("age", "sibsp", "parch")], x.factors) )
+```
+
+
+### Support Vector Machine (SVM) 
+One package that can create SVMs is (`e1071`)[https://www.rdocumentation.org/packages/e1071/versions/1.7-0/topics/svm]. Although not widely used, SVM are one of the simplest machine learning approaches to understand, at least in their simplied form. If you read the description of the SVM package, you will see that there are many parameters that can be tuned.
+```{r eval=TRUE, message=FALSE}
+library(e1071)
+titanic.svm <- svm(survived ~ ., data=titanic.df, scale=TRUE, kernel="linear")
+titanic.svm
+svm.pred <- fitted(titanic.svm)
+table(titanic$survived, svm.pred)
+plot(titanic.svm, titanic.df, age ~ sexmale) 
+titanic.svm <- svm(survived ~ ., data=titanic.df, scale=TRUE, kernel="radial")
+svm.pred <- fitted(titanic.svm)
+table(titanic$survived, svm.pred)
+plot(titanic.svm, titanic.df, age ~ sexmale) 
+plot(titanic.svm, titanic.df, age ~ pclass3) 
+plot(titanic.svm, titanic.df, age ~ sibsp) 
+
+titanic.svm <- svm(survived ~ ., data=titanic.df, scale=TRUE, kernel="radial", probability=TRUE)
+svm.pred <- predict(titanic.svm, titanic.df, probability=TRUE)
+svm.pred.lived <- attr(svm.pred, "probabilities")[, 1]
+```
+
+
+### Random Forest 
+Random forests are a perferred supervised approach. If random forests are new to you, I recommend this intuitive visual illustration of [how a decision tree works](http://www.r2d3.us/visual-intro-to-machine-learning-part-1/). A random forest consists of many such trees created with portions of data from an entire dataset. The authors of Random Forests have a [detailed description](https://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm) of how they work along with descriptions of measures obtained. 
+```{r eval=TRUE, message=FALSE}
+library(randomForest)
+titanic.rf <- randomForest(survived ~ ., data=titanic.df, ntree=100, importance=TRUE)
+titanic.rf
+titanic.rf$importance
+titanic.rf.pred <- predict(titanic.rf, titanic.df, type="prob")
+head(titanic.rf.pred)
+rf.pred.lived <- titanic.rf.pred[, 2]
+```
+
+
+### Lasso regression model 
+The least absolute shrinkage and selection operator (Lasso) is a type of regression analysis that will select the best coefficients that can be used to predict an outcome variable by "shrinking" some of the coefficients. You can read about the specific function that is being optimized to obtain the coeffecients via the resources [here](http://statweb.stanford.edu/~tibs/lasso.html). The [glmnet](https://cran.r-project.org/web/packages/glmnet/index.html) package contains Lasso and other functions to obtain regression models that are appropriate when needing to select among many predictors. The `lambda` parameter, which needs to be selected, can be chosen using cross-validation with the `cv.glmnet` function.
+```{r eval=TRUE, message=FALSE}
+library(glmnet)
+set.seed(1234)
+titanic.lasso <- cv.glmnet(x, y=titanic$survived, alpha=1, family="binomial")
+titanic.lasso$lambda.min
+plot(titanic.lasso)
+lasso.coef <- coef(titanic.lasso, s="lambda.min")
+titanic.lasso.pred <- predict(titanic.lasso, x, s="lambda.min", type="response")
+head(titanic.lasso.pred)
+```
+
+
+### Model Evaluation 
+We use the same approach as that used in practicum 10.
+```{r eval=TRUE, message=FALSE}
+#K-Fold Cross Validation
+N = nrow(titanic)
+K = 10
+set.seed(1234)
+s = sample(1:K, size=N, replace=T)
+pred.outputs.svm <- vector(mode="numeric", length=N)
+pred.outputs.rf <- vector(mode="numeric", length=N)
+pred.outputs.lasso <- vector(mode="numeric", length=N)
+obs.outputs <- vector(mode="numeric", length=N)
+offset <- 0
+for(i in 1:K){
+	train <- filter(titanic.df, s != i)
+	test <- filter(titanic.df, s == i)
+    obs.outputs[1:length(s[s==i]) + offset] <- test$survived
+
+    #SVM train/test
+    svm.m <- svm(survived~., data=train, scale=TRUE, kernel="radial", probability=TRUE)
+	svm.pred.curr <- predict(svm.m, test, probability=TRUE) 
+	pred.outputs.svm[1:length(s[s==i]) + offset] <- attr(svm.pred.curr, "probabilities")[,1]
+
+    #RF train/test
+    rf <- randomForest(survived~., data=train, ntree=100)
+	rf.pred.curr <- predict(rf, newdata=test, type="prob") 
+	pred.outputs.rf[1:length(s[s==i]) + offset] <- rf.pred.curr[,2]
+
+	#lasso train/test
+    lasso.m <- cv.glmnet(as.matrix(train[, -1]), y=train[, 1], alpha=1, family="binomial")
+    lasso.pred.curr <- predict(lasso.m, as.matrix(test[, -1]), s="lambda.min", type="response")
+	pred.outputs.lasso[1:length(s[s==i]) + offset] <- lasso.pred.curr[,1]
+	
+	offset <- offset + length(s[s==i])
+}
+```
+
+
+
+### ROC Curves
+ROC Curves provide an intuitive display of how well a predictive test performs over all possible thresholds that can be used to divide two outcomes. One R package that can create ROC curves and compute associated areas under the ROC curves (AUCs) and confidence intervals is `pROC`.
+```{r eval=TRUE, message=FALSE}
+library(pROC)
+#SVM
+roc(obs.outputs, pred.outputs.svm, ci=TRUE)
+plot.roc(titanic$survived, svm.pred.lived)
+plot.roc(obs.outputs, pred.outputs.svm, ci=TRUE, col="blue", add=TRUE)
+legend("bottomright", legend=c("Training", "Cross-Validation"), col=c("black", "blue"), lwd=1)
+
+#Random Forest
+roc(obs.outputs, pred.outputs.rf, ci=TRUE)
+plot.roc(titanic$survived, rf.pred.lived)
+plot.roc(obs.outputs, pred.outputs.rf, ci=TRUE, col="darkgreen", add=TRUE)
+legend("bottomright", legend=c("Training", "Cross-Validation"), col=c("black", "darkgreen"), lwd=1)
+
+#Lasso
+roc(obs.outputs, pred.outputs.lasso, ci=TRUE)
+plot.roc(titanic$survived, titanic.lasso.pred[,1])
+plot.roc(obs.outputs, pred.outputs.lasso, ci=TRUE, col="red", add=TRUE)
+legend("bottomright", legend=c("Training", "Cross-Validation"), col=c("black", "red"), lwd=1)
+
+#Plot both cross-validation ROCs
+plot.roc(obs.outputs, pred.outputs.svm, ci=TRUE, col="blue") #CV of svm
+plot.roc(obs.outputs, pred.outputs.rf, ci=TRUE, col="darkgreen", add=TRUE) #CV of rf
+plot.roc(obs.outputs, pred.outputs.lasso, ci=TRUE, col="red", add=TRUE) #CV of lasso
+legend("bottomright", legend=c("SVM Cross-Validation", "RF Cross-Validation", "Lasso Cross-Validation"), col=c("blue", "darkgreen", "red"), lwd=2)
+```
+

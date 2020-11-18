@@ -1,0 +1,344 @@
+---
+title: 'Practicum 3: R Programming Basics'
+author: 'Data Science for Biomedical Informatics (BMIN503/EPID600) Fall2018'
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+        collapsed: true
+        smooth_scroll: true
+    depth: 3 
+    theme: paper 
+    highlight: tango
+
+
+---
+
+***
+In this practicum, we will become familiar with basic R data types and commands. Learning these is necessary to perform more advanced analyses. If you are familiar with programming, then this will be a straightforward exercise, if not, then hang in there and learn as much as you can. The time you invest in learning R will pay off later. From now on, it will be convenient to download the `Rmd` versions of these practicum files so that you can run code directly, rather than have to type in or copy/paste from the `html` documents.
+
+### Basic R Commands
+To assign values to variables, use `<-`, the assignment operator. You will also see `=` used in several cases, especially to assign entries within a braced list of expressions or function to avoid global assignment of variables. At the prompt, `<-` and `=` will behave equally.
+```{r eval=TRUE}
+#{r echo=FALSE} hides code block
+#{r eval=FALSE} shows code block hides output
+#{r eval=TRUE} shows code block shows output
+#grey block is code
+#white block is output
+x <- 1
+y <- c(1,4,8)
+print(x) #explicit print statement
+print(y)
+x 
+y
+```
+
+Notice the output of `x` and `print(x)` are the same. Typing `x` is called _auto-printing_, while `print(x)` is _explicit printing_. Sometimes explicit printing is needed if the default behavior of a call is not to print, for example, within functions or to output graphics - more on this later. You can use `#` as a prefix to insert comments into code.
+```{r eval=TRUE}
+#List of colors:
+my.colors <- c("red", "yellow", "blue")
+print(my.colors)
+```
+
+Incomplete entries on the R prompt continue onto another line.
+
+To get a list of integers use `:`. To create lists of numbers with more flexibility use `seq`. To create multiple instances of a pattern, use `rep`.
+```{r eval=TRUE}
+x <- 1:50
+x 
+x2 <- seq(1, 10, 2)
+x2
+x3 <- rep(1, 20)
+x3
+```
+
+### R Data Types
+There are five basic objects in R:
+
+- Character (i.e. text)
+- Numeric (i.e. real numbers)
+- Integer
+- Complex
+- Logical (TRUE/FALSE)
+
+To find out the type of object a variable x is, use `class(x)`. Each object can have atrtributes, including:
+
+- Names
+- Dimension
+- Class
+- Length
+
+To find out what other attributes a particular object has, use `attributes(x)`
+```{r eval=TRUE}
+class(x)
+class(colors)
+class(Inf) #Infinity
+class(1)
+class(1L) #Use the letter L after a number to specify that it is an integer
+```
+Missing values in R are denoted as `NA`, while undefined numeric values are denoted `NaN`. To find out if values are missing, use `is.na()`. Similarly, `is.nan()` can be used to test for `NaN`. `NA` can take on the class of the members of its data structure.
+```{r, eval=TRUE}
+class(NaN) #Undefined numeric value "not a number"
+0/0
+x <- 1
+is.na(x)
+!is.na(x) #Notice negation of is.na() by preceding with !
+y <- NA
+is.na(y)
+!is.na(y)
+```
+
+
+### Data Structures
+#### Vectors
+Vectors, can be created with the `c()` function or the `vector()` function. Its contents can be of one type or a mixture. In the case when there is a mixture of classes, all values will be coerced into a common class. To force a change to a different class, use functions such `as.numeric()`, `as.character()`.
+```{r, eval=TRUE}
+x <- c(1:5)
+y <- c("a", 1, TRUE)
+z <- c(x, y)
+print(x)
+print(y)
+print(z)
+print(c(class(x), class(y), class(z)))
+as.character(x) #A coercion that may be helpful
+as.numeric(y) #A coercion that may not make sense
+```
+
+
+#### Lists
+Lists are similar to vectors, but they can contain elements of different classes.
+```{r, eval=TRUE}
+x <- list(1, "a", c(1:5))
+print(x)
+print(class(x))
+print(class( x[[1]] ))
+print(class( x[[2]] ))
+print(class( x[[3]] ))
+```
+
+
+#### Factors
+Factors are similar to vectors, but they represent categorical data. Often used for statistical modeling since variables can keep an intuitive label, rather than have to be converted to numbers first. They can be ordered or unordered.
+```{r, eval=TRUE}
+x <- c("male", "male", "female", "female", "male")
+x
+table(x)
+y <- factor(x)
+#Notice the "Levels:" after the output
+y 
+table(y)
+```
+Although the factor looks like a text list, the underlying structure in R is numerical, which is necessary for use of statistical models. The underlying structure can be viewed with `unclass()`.
+```{r, eval=TRUE}
+unclass(y)
+unclass(x)
+```
+The order of factors can be set using the `levels` argument. The first argument is used as _baseline_ level when making statistical models. We will come back to this in a future practicum.
+```{r, eval=TRUE}
+y2 <- factor(c("male", "male", "female", "female", "male"), levels=c("male", "female"))
+y2
+```
+
+
+#### Matrices
+Marices are vectors with a dimension attribute that contains the number of rows and columns. Elements must be of the same class.
+```{r, eval=TRUE}
+x <- matrix(nrow=3, ncol=4)
+x
+dim(x)
+```
+A common way to create matrices or add rows/columns is the use of `cbind()` or `rbind()`.
+```{r, eval=TRUE}
+x <- c(1:4)
+y <- c(5:8)
+m <- cbind(x,y)
+m2 <- rbind(x,y)
+x
+y
+m
+m2
+```
+
+
+#### Data Frames
+Data frames are like lists, in that they can be composed of entries of multiple classes, but they are 2-dimensional. This data structure is used very often for data analysis in R, and it is a format we will most often during the class. Each column of a data frame must have elements of a single class, and each column must be of the same length.
+```{r, eval=TRUE}
+x <- data.frame(c(1:5), c("a","b","c","d","e"))
+x
+names(x) <- c("Numbers", "Letters!")
+x
+dim(x)
+```
+Names are most commonly used with data frames, but these can also be helpful when used with other data types (i.e. vectors, lists, matrices).
+
+#### Diagnostics
+If you are working with an object and need to find out more about it, the `summary()` and `str()` functions come in handy. The `str()` command will show a brief display of an object's internal structure or give informatin about a function. The `summary()` command gives output that attempts to summarize variables.
+```{r, eval=TRUE}
+str(x)
+summary(x)
+str(y2)
+summary(y2)
+str(data.frame)
+str(read.table)
+```
+
+***
+
+### Programming Basics
+R can be used to write simple to advanced functions. Doing this requires learning commands that are part of the language. Most R users have to write scripts with functions to analyze data, even if not methodologically advanced. This saves time and helps with reproducibility. Advanced users may write R packages with novel methods or to make current methods more efficient. Code from other languages, such as C/C++ can be called into R code to make a complex function more efficient. For this class, we will cover some of the basic programming structures that will allow you to write scripts to analyze data. As you become familiar with these, you can continue to learn more from your textbook or other resources to write more complex code. Open an R script file to work with the pieces of R code below.
+
+#### If Statements
+```{r, eval=TRUE}
+x <- 2
+if(x > 10) {
+  y <- 20
+  print("Your number is greater than 10")
+} else {
+  y <- 0
+  print("This is not a number greater than 10")
+}
+y
+
+x <- 200
+if(x > 10) {
+  y <- 20
+  print("Your number is greater than 10")
+} else {
+  y <- 0
+  print("This is not a number greater than 10")
+}
+y
+```
+_If statements_ are not very helpful when written as above. Rather, they are often part of a function where a value (or values) can be passed and a condition evaluated. For example, this could be a portion of a script where the value _x_ changes and a decision is made based on its value. This way, the _if statement_ would only have to be written once. Other possibilities for _if statements_ are to include _else if_ clauses or to only test one condition. Try these on your own:
+```{r, eval=FALSE}
+if(x > 10){ y <- 20 }
+y
+rm(y)
+x<-2
+
+if(x > 10){ y <- 20 }
+y
+
+if(x > 10) {
+  y <- 20
+} else if(x < 5) {
+  y <- 0
+} else {
+  y <- 10
+}
+y
+```
+
+#### For Loops
+To repeat a task over a sequence of numbers (or items), we use _for loops_. Their format in R is as follows:
+```{r, eval=TRUE}
+for (i in 1:5) {
+  print(i)
+}
+```
+Iteration can take place over any vector. For example,
+```{r, eval=TRUE}
+x <- c("red", "blue", "yellow", "green")
+for(i in x){
+  print(i)
+}
+```
+A function that can come in handy to loop over an integer equal to a sequence length is `seq_along()`
+```{r, eval=TRUE}
+for(i in seq_along(x)){
+  print(i)
+}
+for(i in seq_along(x)){
+  print(x[i])
+}
+```
+Loops can be nested by using tabs and curly brackets to demarcate each loop.
+```{r, eval=TRUE}
+for(i in 1:5){
+  for(j in x){
+    print(paste("At number", i, "with color", j))
+  }
+}
+```
+Sometimes _for loops_ are constructed with exceptions that allow one to break out of the loop structure or skip an iteration. In R, this can be done using `next`. Say you wanted to skip `i=3` in the loop above:
+```{r, eval=TRUE}
+for(i in 1:5){
+  if(i==3) {
+    next
+  } else {
+    for(j in x){
+      print(paste("At number", i, "with color", j))
+    }
+  }
+}
+```
+The `break` function is helpful to break out of a loop because further computation is unnecessary or to generate helpful "error messages" within scripts. Say you needed for x consist of numbers, rather than strings. You could use:
+```{r, eval=TRUE}
+x <- c("red", "blue")
+for(i in 1:5){
+  for(j in x){
+    if(class(j) != "numeric"){
+      print(paste("Error: A non-numeric value was provided:", j))
+      break
+    }
+    print(i+j)
+  }
+}
+```
+Notice what would happen without the `break` by trying to run this:
+```{r, eval=FALSE}
+x <- c("red", "blue")
+for(i in 1:5){
+  for(j in x){
+    if(class(j) != "integer"){
+      print(paste("Error: A non-numeric value was provided:", j))
+    }
+    print(i+j)
+  }
+}
+```
+
+Loops are used within programs, and sometimes they are a necessity. However, in R, many loop actions can be completed with a vectorized operation. These can help make code easy to read and can be more computationally efficient because operations with them can be performed in parallel.
+```{r, eval=TRUE}
+x <- 1:5
+y <- 10:14
+x/y
+x+y
+x > 1
+m1 <- matrix(1:4, 2, 2)
+m2 <- matrix(c(1, 1, 0, 2), 2, 2)
+m1
+m2
+m1*m2 #An element-wise operation
+m1 %*% m2 #A matrix operation
+```
+Be careful with these functions and check your code as you go. Here is something unexpected that could happen:
+```{r, eval=TRUE}
+c(1,2,1,2) * c(1,2,3,4) #No problem
+c(1,2) * c(1,2,3,4) #How might this work?
+c(1,2,1) * c(1,2,3,4) #And this?
+```
+
+R has many loop functions that work as a _for loop_ but are shorter to write, making code simpler: `lappy`, `sapply`, and `apply`. Here are some examples of these:
+```{r, eval=TRUE}
+x <- list(c(1:10), c(11:20))
+sapply(x, sum)
+sapply(x, length)
+y <- list(a = rep(1, 5), b = rep(2, 5))
+lapply(y, sum) #list apply
+sapply(y, sum) #simplified apply
+m1
+apply(m1, 1, sum) #computes function along margins of an array 1=rows, 2=columns
+apply(m1, 2, sum)
+```
+Some shorthand functions that are like `apply` for common operations but work more quickly:
+```{r, eval=TRUE}
+rowSums(m1)
+rowMeans(m1)
+colSums(m1)
+colMeans(m1)
+```
+Two other loop functions are `tapply`, and `mapply`. `mapply` can take in multiple lists and use items of each in a function. `tapply` is used to apply a function over subsets of a vector.
+
+
+

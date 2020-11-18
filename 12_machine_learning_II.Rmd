@@ -1,0 +1,132 @@
+---
+title: "Practicum 11: Machine Learning - Unsupervised Methods"
+author: "Data Science for Biomedical Informatics (BMIN503/EPID600)"
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+        collapsed: true
+        smooth_scroll: true
+    depth: 3 
+    theme: paper 
+    highlight: tango
+---
+
+```{r global options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+options(width = 400)
+```   
+***
+New packages to install for this practicum:
+```{r, eval=FALSE}
+library(devtools)
+install_github("vqv/ggbiplot")
+install.packages("ggdendro")
+install.packages("Rtsne")
+```
+***
+
+We will (1) review principal component analysis (PCA) and (2) use unsupervised approaches that group samples according to a similarity measure with the `iris` dataset.
+
+### Principal Component Analysis (PCA)
+PCA is often used during exploratory analyses to find patterns among samples and related these to variables. In some cases, one or more of the principal components are used as variables to adjust for unmeasured effects that are not thought to be related to an outcome. A common R command to do PCA is `prcomp`. Measures in datasets are often in different units, resulting in large differences in variance among them. To not let differences related to units impact results, rescale variables by setting `scale=TRUE`. If necessary, install `ggbiplot` to visualize biplots with ggplot2.
+
+```{r eval=TRUE, message=FALSE}
+library(ggbiplot)
+str(iris)
+iris.pca <- prcomp(iris[, 1:4], scale=TRUE)
+print(iris.pca) #Displays std deviations of PCs and their loadings (i.e. coefficients)
+summary(iris.pca) #Can see proportion of variance explained by PCs
+
+ggbiplot(iris.pca, groups=iris$Species, circle=TRUE)
+ggbiplot(iris.pca, groups=iris$Species, circle=TRUE, ellipse=TRUE) +
+    scale_color_discrete(name = '') +
+    theme(legend.direction = 'horizontal', legend.position = 'top')
+```
+
+
+Scree Plots can help us decide how many principle components to keep for a given analysis, by choosing the number of PCs that represent the variability (i.e., variance) of all other variables at some desired threshold. 
+```{r eval=TRUE, message=FALSE}
+ggscreeplot(iris.pca)
+```
+
+
+### K-means Clustering
+We know `iris` is composed of three flower types, let's see if we can find these using the four available measures. The K-Means Clustering function in R is `kmeans()`.
+```{r eval=TRUE}
+iris.kmeans <- kmeans(iris[, 1:4], 3)
+iris.kmeans
+table(iris$Species, iris.kmeans$cluster)
+centers <- as.data.frame(iris.kmeans$centers)
+```
+
+We can plot 2 dimensions at a time for ease of interpreting patterns although clusters are in 4D.
+```{r eval=TRUE}
+ggplot(data=iris, aes(Sepal.Length, Sepal.Width, color=factor(iris.kmeans$cluster))) +
+    geom_point() +
+    geom_point(data=centers, aes(Sepal.Length, Sepal.Width), color="purple", size=3)
+
+ggplot(data=iris, aes(Petal.Length, Petal.Width, color=factor(iris.kmeans$cluster))) +
+    geom_point() +
+    geom_point(data=centers, aes(Petal.Length, Petal.Width), color="purple", size=3)
+```
+
+
+### Hierarchical Clustering
+The Hierarchical Clustering function is `hclust`. Rather than provide a data frame, we provide a distance matrix, which is often obtained by using `dist()` with its default method being `euclidean`. To make dendrograms using ggplot, use the `ggdendro` package. Below we use three different distance metrics to add new members to clusters.
+```{r eval=TRUE, message=FALSE}
+library(ggdendro)
+#Largest distance between members in clusters
+iris.hclust <- hclust(dist(iris[, 1:4]), method="complete") 
+iris.dend <- dendro_data(as.dendrogram(iris.hclust))
+labels <- label(iris.dend)
+labels$Species <- iris$Species[as.numeric(levels(labels$label))]
+ggplot(segment(iris.dend)) +
+    geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) +
+    geom_text(data=labels, aes(label=label, x=x, y=0, color=Species), size=4)
+
+#Closest distance between members in clusters
+iris.hclust.s <- hclust(dist(iris[, 1:4]), method="single") 
+iris.dend.s <- dendro_data(as.dendrogram(iris.hclust.s))
+labels <- label(iris.dend.s)
+labels$Species <- iris$Species[as.numeric(levels(labels$label))]
+ggplot(segment(iris.dend.s)) +
+    geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) +
+    geom_text(data=labels, aes(label=label, x=x, y=0, color=Species), size=4)
+
+#Average distance among members in clusters
+iris.hclust.a <- hclust(dist(iris[, 1:4]), method="average")
+iris.dend.a <- dendro_data(as.dendrogram(iris.hclust.a))
+labels <- label(iris.dend.a)
+labels$Species <- iris$Species[as.numeric(levels(labels$label))]
+ggplot(segment(iris.dend.a)) +
+    geom_segment(aes(x=x, y=y, xend=xend, yend=yend)) +
+    geom_text(data=labels, aes(label=label, x=x, y=0, color=Species), size=4)
+```
+
+
+To create divisions in our dataset according to a level of the tree, we can use the `cutree()` function. 
+```{r eval=TRUE, message=FALSE}
+iris.cut <- cutree(iris.hclust, 3) #Cut where there are 3 clusters
+table(iris$Species, iris.cut)
+table(iris.cut, iris.kmeans$cluster) #Comparing k-means and hierarchical clustering results
+```
+
+
+### tSNE    
+T-Distributed Stochastic Neighbor Embedding (tSNE) is a popular machine learning algorithm that can be used to visualize high-dimensional data in a few dimensions, where "similar" samples are grouped into classes. We will use the [Rtsne](https://cran.r-project.org/web/packages/Rtsne/) package to illustrate what tSNE can do. For more information on this algorithm, you can read the original [paper](http://jmlr.org/papers/volume9/vandermaaten08a/vandermaaten08a.pdf) or consult resources at its creator's [website](https://lvdmaaten.github.io/tsne/). `Rtsne` requires a matrix of unique entries to be passed along to its main function.
+
+```{r eval=TRUE, message=FALSE}
+library(Rtsne)
+library(dplyr)
+set.seed(1234)
+iris.unique <- unique(iris)
+iris.unique.matrix <- as.matrix(iris.unique[, 1:4])
+iris.tsne <- Rtsne(iris.unique.matrix) 
+iris.tsne.out <- data.frame(iris.tsne$Y) %>%
+                    rename(x = X1, y = X2) %>%
+                    mutate(Species = iris.unique$Species)
+ggplot(data = iris.tsne.out, aes(x=x, y=y, color=Species)) +
+    geom_point() 
+```
+

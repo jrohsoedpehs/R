@@ -1,0 +1,233 @@
+---
+title: 'Practicum 9: Visualization'
+author: 'Data Science for Biomedical Informatics (BMIN503/EPID600)'
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+        collapsed: true
+        smooth_scroll: true
+    depth: 3 
+    theme: paper 
+    highlight: tango
+---
+
+```{r global options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```   
+***
+New packages to install for this practicum:
+```{r, eval=FALSE}
+install.packages("devtools")
+library(devtools)
+install_github("wilkelab/cowplot")
+```
+***
+Good visualization is critical to present research findings in an intuitive and appealing way, but it can also enhance our ability to understand data as we analyze it and uncover unexpected patterns. In this practicum, we will learn more about the `ggplot2` package, which has greatly simplified the production of high quality graphics in R. The official [`ggplot2`](http://docs.ggplot2.org/current/) documentation is helpful to give an idea of how much this package can do. You can also read more in this [overview](http://ggplot2.tidyverse.org/) and/or the [data visualization](http://r4ds.had.co.nz/data-visualisation.html) chapter of the "R for Data Science" book. Samples of plots that can be made with `ggplot2` with accompanying code are available at sites such as [UBC Stat shiny server](http://shiny.stat.ubc.ca/r-graph-catalog/). We will use (1) `iris`, a classic R built-in dataset that contains measures of sepal length and width, and petal length and width for 50 flowers from each of 3 species of iris (setosa, versicolor, virginica), and (2) the NHANES dataset we've used before.
+
+```{r eval=TRUE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+nhanes <- read.csv(url("https://raw.githubusercontent.com/HimesGroup/BMIN503/master/DataFiles/NHANES_2007to2008.csv"), header=TRUE)
+nhanes <- rename(nhanes, id=SEQN, gender=RIAGENDR, age=RIDAGEYR, race=RIDRETH1, education=DMDEDUC2, income=INDHHIN2, health.provider=HUQ040, wheezing=RDQ070, asthma=MCQ010, voc=WTSVOC2Y, fvc=SPXNFVC, fev1=SPXNFEV1) %>%
+    mutate(gender=factor(gender, levels=c(1, 2), labels=c("male", "female"))) %>%
+    mutate(race=factor(race, levels=c(3, 1, 2, 4, 5), labels=c("white", "MexicanAmerican", "Hispanic", "black", "other"))) %>%
+    mutate(asthma=ifelse(asthma %in% c(7,9), NA, ifelse(asthma==2, 0, 1))) %>%
+    filter(!is.na(asthma))
+str(nhanes)
+str(iris)
+```
+
+### Pipe operator works with ggplot
+```{r eval=TRUE, message=FALSE}
+nhanes %>% 
+    mutate(adult.status = factor(age>=18, labels=c("child", "adult"))) %>% 
+    filter(adult.status=="child") %>% 
+    ggplot(aes(x=age, y=fev1)) + 
+        geom_point() +
+        geom_smooth(method = "lm", color="red")
+```
+
+
+### More ggplot options and plot types
+We'll look at more options related to ggplot by adding to the layers created before. More options related to setting background, axis, title, and legend options are available in [`theme`](http://ggplot2.tidyverse.org/reference/theme.html). The default settings for ggplot will appropriately select color type (although not necessary color blind or black-and-white printer friendly).
+
+#### Scatterplot
+```{r eval=TRUE}
+ggplot(data=iris, aes(Sepal.Length, Petal.Length, color=Petal.Width)) + 
+    geom_point() + 
+    labs(title="Iris Characteristics") +
+    labs(x="Sepal Length", y="Petal Length") + #Adds a layer with labels
+    xlim(c(4, 8)) + #Changes x axis limits
+    ylim(c(1, 8))   #Changes y axis limits
+```
+
+Change color scale.
+```{r eval=TRUE}
+ggplot(data=iris, aes(Sepal.Length, Petal.Length, color=Petal.Width)) + 
+    geom_point() + 
+    scale_color_gradient(low="#fee6ce", high="#e6550d") +
+    labs(title="Iris Characteristics") +
+    labs(x="Sepal Length", y="Petal Length") + #Adds a layer with labels
+    xlim(c(4, 8)) + #Changes x axis limits
+    ylim(c(1, 8)) + #Changes y axis limits
+    theme_bw() #Changes theme to black and white
+```
+
+This time we can view up to four dimensions of our data by setting color and size, in addition to x and y variables.
+```{r eval=TRUE}
+ggplot(data=iris, aes(Sepal.Length, Petal.Length, color=Species, size=Petal.Width)) + 
+    geom_point() + 
+    labs(title="Iris Characteristics") +
+    labs(x="Sepal Length", y="Petal Length") + #Adds a layer with labels
+    xlim(c(4, 8)) + #Changes x axis limits
+    ylim(c(1, 8)) + #Changes y axis limits
+    theme_bw() #Changes theme to black and white
+```
+  
+#### Barplot
+When creating barplots, use `geom_bar` with default option `stat=bin` to get counts in each category. To split panels according to another categorical variable `facet_grid` can be used. More color options that work for all chart types are described [here](http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/).
+```{r eval=TRUE}
+ggplot(data=nhanes, aes(x=race, fill=factor(asthma))) + 
+    geom_bar(position="dodge")
+ggplot(data=nhanes, aes(x=race, fill=factor(asthma))) + 
+    geom_bar(position="dodge") +
+    facet_grid(. ~gender) + #Split by another variable
+    theme(axis.text.x=element_text(angle=45, hjust=1))
+ggplot(data=nhanes, aes(x=gender, fill=factor(asthma))) + 
+    geom_bar() +
+    scale_fill_brewer(palette="Set1") #ColorBrewer palettes
+```
+
+#### Boxplot
+```{r eval=TRUE}
+ggplot(data=iris, aes(Species, Sepal.Length)) + 
+    geom_boxplot() 
+ggplot(data=iris, aes(Species, Sepal.Length)) +
+    geom_boxplot() +
+    geom_jitter() #Add a second layer of jittered data points
+ggplot(data=iris, aes(Species, Sepal.Length)) +
+    geom_boxplot(outlier.colour="red", outlier.size=4) #Making outliers more noticeable
+ggplot(data=iris, aes(Species, Sepal.Length)) +
+    geom_violin() #violin plots
+ggplot(data=iris, aes(Species, Sepal.Length)) +
+    geom_violin(fill="lightblue", draw_quantiles = c(0.25, 0.5, 0.75)) +
+    geom_jitter(height=0, width=0.1)
+ggplot(data=iris, aes(Species, Sepal.Length)) +
+    geom_boxplot(aes(fill=Species)) #Coloring according to species
+ggplot(data=nhanes, aes(gender, voc)) +
+    geom_boxplot(color="darkgreen", fill="darkgreen", alpha=0.5)
+ggplot(data=nhanes, aes(gender, voc)) +
+    geom_boxplot(aes(fill=factor(asthma))) #Add another variable with fill
+```
+
+#### Histograms
+```{r eval=TRUE}
+ggplot(data=nhanes, aes(age)) + 
+    geom_histogram(breaks=seq(0, 80, 1), color="blue", fill="blue", alpha=0.7) 
+#Density plot
+ggplot(data=nhanes, aes(age)) + 
+    geom_histogram(aes(y=..density..), breaks=seq(0, 80, 1), color="blue", fill="blue", alpha=0.7) +
+    geom_density(color="red")
+```
+
+#### Smoothing lines
+When many points are part of a scatter plot, it can be difficult to see patterns that represent major trends. The `geom_smooth` command (similar to `geom_stat`) will plot smooth conditional means. The smoothing function can be specified with the `method` option as  "lm", "glm", "gam", "loess", "nls". 
+```{r eval=TRUE}
+ggplot(nhanes, aes(x=age, y=fev1)) +
+    geom_point(color="grey") +
+    geom_smooth(color="red") #Default option is method="auto" which selects loess for <1000 points and gam with formula y~s(x, bs="cs") otherwise
+
+ggplot(nhanes, aes(x=age, y=fev1)) +
+    geom_point(color="grey") +
+    geom_smooth(color="red") +
+    geom_smooth(color="black", method="lm") +
+    geom_smooth(color="green", method="loess")
+```
+
+Additionally, a `formula` can be given for use in the smoothing function.
+```{r eval=TRUE}
+x <- 1:10
+y <- jitter(x^2)
+DF <- data.frame(x, y)
+
+ggplot(DF, aes(x=x, y=y)) + 
+    geom_point() +
+    geom_smooth(method='lm', aes(color = 'linear'), se=FALSE) +
+    geom_smooth(method='lm', formula = y ~ poly(x, 2), aes(color = 'polynomial'), se=FALSE) +
+    geom_smooth(method='nls', 
+                formula = y ~ a*log(x) + b, 
+                method.args = list(start = c(a=1, b=1)),
+                aes(color = 'logarithmic'), 
+                se=FALSE) +
+    geom_smooth(method='nls', 
+                formula = y ~ a*exp(b*x), 
+                method.args = list(start = c(a=1, b=1)),
+                aes(color = 'Exponential'), 
+                se=FALSE)
+```
+
+
+#### Contours of 2D density estimates
+When many points are in a 2D scatter plot, it can similarly be difficult to tell where the majority of points are. Density plots can help us interpret data relationships when there is overplotting.
+```{r eval=TRUE}
+ggplot(nhanes, aes(x=fvc/1000, y=fev1/1000)) +
+    geom_point(color="grey") +
+    stat_density2d(aes(fill=..level.., alpha=..level..), geom="polygon", color="black") +
+    scale_fill_continuous() +
+    guides(alpha="none")
+```
+
+
+#### Raster of 2D density estimates
+If the contours are left out, then `stat_density2d` can be used to produce a raster of the data.
+```{r eval=TRUE}
+ggplot(nhanes, aes(x=fvc/1000, y=fev1/1000)) +
+    stat_density2d(aes(fill=..density..), geom="raster", contour=FALSE) +
+    scale_fill_continuous(low="#238443", high="#ffffcc") +
+    guides(alpha="none")
+```  
+
+
+#### `viridis` color scheme
+This color scheme is a personal favorite for use with heatmaps and other 2D plots that, as of 2018, is part of `ggplot2`.
+```{r eval=TRUE}
+ggplot(nhanes, aes(x=fvc/1000, y=fev1/1000)) +
+    stat_density2d(aes(fill=..density..), geom="raster", contour=FALSE) +
+    scale_fill_viridis_c() +
+    guides(alpha="none")
+``` 
+
+
+### Saving figures
+To save graphical output to a file in R, one opens a graphics device to redirect output of plots to them, and when plots are completed, one _closes_ the device to save the final version. To see all available graphical devices, type `?Devices`. The default device in R is usually an interactive window, like the one we see in RStudio. Here are two examples using common formats.
+```{r eval=TRUE}
+options("device") #To see the current graphics device
+fig <- ggplot(data=iris, aes(Species, Sepal.Length)) +
+        geom_boxplot(color="darkblue", fill="blue")
+#Save as PDF
+pdf("Ex1.pdf", width=6, height=5) #Units are inches
+fig
+dev.off()
+#Save as TIFF
+tiff("Ex1.tiff", width=480, height=480, units="px")
+fig
+dev.off()
+```
+`ggplot2` offers a simplified function to save graphics output: `ggsave`.
+```{r eval=TRUE}
+fig
+ggsave("Ex2.pdf") #Default plot to save is last plot
+ggsave("Ex2.tiff", plot=fig)
+```
+
+
+### Publication graphics
+The theme used with `ggplot2` can be customized to suit your personal taste. One researcher created an R package called [`cowplot`](https://cran.r-project.org/web/packages/cowplot/vignettes/introduction.html) as a `ggplot2` add-on to easily create publication-ready graphics.
+```{r eval=FALSE}
+library(cowplot)
+save_plot("Ex3.pdf", fig, base_aspect_ratio=1.3) #Save using the default format of cowplot
+```
+
+
+

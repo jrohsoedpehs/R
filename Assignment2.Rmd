@@ -1,0 +1,90 @@
+---
+title: "Assignment 2"
+author: "Data Science for Biomedical Informatics (BMIN503/EPID600)"
+output: 
+  html_document:
+    toc: false 
+    depth: 3 
+    theme: paper 
+    highlight: tango
+---
+    
+```{r set-options, echo=FALSE, cache=FALSE}
+options(width = 400)
+```    
+
+***
+
+###Instructions
+- Download the Rmd version of this file
+- Complete the questions below in RStudio using the Rmd file as a template 
+- Replace text in brackets with your answers. (There is no need to keep the brackets).
+- Save the Rmd document as Assignment2_*YOUR LAST NAME*.Rmd
+- Create an HTML version using knitr
+- Turn in completed Assignment2_*YOUR LAST NAME*.html file in Canvas under Assignments -> Assignment 2
+- Your assignment **must** be in html format or it will not be graded
+- Grades will be assigned according to point scheme below and computed as a percentage of total possible points
+- Lateness policy: If an urgent and unforseen circumstance comes up and you need an extension to turn in an assignment, please contact Blanca and/or Sherrie as soon as possible. Unless there is an arrangement in place, late assignments will be scored as follows: 
+    - 25% of total score if 1 day late
+    - 50% of total score if 2 days late
+    - 75%  of total score if 3 days late
+    - Assignment will not be graded if 4 or more days late
+- DUE DATE: 9/18/18 11:59pm
+
+###R Basics
+1. Create a matrix `m` containing the following columns (in this order): *(2 points)* 
+    + Column 1: Numbers 1 thru 40
+    + Column 2: Even numbers 1 thru 80
+    + Column 3: All Zeros
+    + Column 4: Entries of column 1 times those of column 2
+
+> Replace this text with a chunk of R code that shows how you make this matrix
+
+  Show the header of `m`. Add a 5th column containing repeated instances of the letters `a` and `b` (i.e. `a`, `b`, `a`, `b`,...). Show the header of `m` again. What changed? *(2 points)*
+    
+> Replace this text with a chunk of R code to answer the question, and then provide a 1 sentence explanation (as text below the chunk) of what changed in m by comparing the output of head(m) commands
+
+2. Create a data frame m2 based on the matrix m (i.e. convert m to a data frame, rather than define m2 from scratch using the individual columns). Label the columns as "Index", "EvenNums", "Zeroes", "V4", and "AB" in that order. Get the class of each column. Convert the entries that should be numerical back to numbers (i.e, all except "AB"). Hint: this can be tricky, so be sure to check your answer. Show the class of each column again. *(2 points)*
+
+> Replace this text with a chunk of R code to answer the question. Here is a hint to quickly get m2 classes: sapply(m2, class)
+
+3. Write a _for loop_ to create a list `L` where each entry `i` is a list of the "EvenNums" and "AB" corresponding to m2[i, ]. Show the contents of the 30th element of this list. Show two ways in which you can retrieve the contents of the 2nd element of the 30th element of L (hint: use double brackets and $). *(2 points)*
+
+> Replace this text with a chunk of R code to answer the question.
+
+4. Write a function called `my.f` that returns x if x is even, or 2 times x if x is odd. Account for the fact that a user may not provide an integer by having a condition that displays a text message with a warning when x is not an integer. *(2 points)*
+
+> Replace this text with a chunk of R code to answer the question. Use the outline of the function below to answer.
+  my.f <- function(x) {
+            [your code here]
+  }
+  
+> Show output of the following commands:
+
+> my.f(3)
+
+> my.f(3L)
+ 
+> my.f(6L)
+
+> my.f("two")
+
+
+
+####R Data Manipulation
+5. There is a CSV file containing a subset of the 2007-2008 NHANES data [here](https://raw.githubusercontent.com/HimesGroup/BMIN503/master/DataFiles/NHANES_2007to2008.csv) with a corresponding [data dictionary](https://github.com/HimesGroup/BMIN503/blob/master/DataFiles/NHANES_2007to2008_DataDictionary.md). Read in the *raw* data file. *(2 points)*
+
+> Replace this text with a chunk of R code that loads the dataset
+  
+Now, using some of the R functions discussed in class, answer the following questions by inserting code below each bullet to provide the answer directly. *(10 points)*
+
+* How many subjects are in the dataset and what data type is in each column?
+
+* How many missing values are there for each variable?
+
+* How many male and female subjects are there?
+
+* What is the most frequent answer to the question regarding the type of place subjects most often go for healthcare?
+
+* How many adult subjects are there (with adult defined as age of 18 or greater)?
+

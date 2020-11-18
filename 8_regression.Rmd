@@ -1,0 +1,216 @@
+---
+title: 'Practicum 8: Regression'
+author: 'Data Science for Biomedical Informatics (BMIN503/EPID600)'
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+        collapsed: true
+        smooth_scroll: true
+    depth: 3 
+    theme: paper 
+    highlight: tango
+---
+
+```{r set-options, echo=FALSE, cache=FALSE, message=FALSE}
+options(width = 400)
+```   
+***
+There are no new packages to install for this practicum.
+***
+
+We will measure statistical relationships among variables using linear and logistic regression analyses. Additionally, we will cover basic correlation measures and how to visualize computed models in simple terms. We will continue to use the NHANES dataset with additional columns corresponding to: wheezing, asthma, volatile organic compounds a person was exposed to in 24-48 hours, and two pulmonary function measures (i.e., forced expiratory volume in one second (FEV1) and forced vital capacity (FVC)). More details are in the [data dictionary](https://github.com/HimesGroup/BMIN503/blob/master/DataFiles/NHANES_2007to2008_DataDictionary.md). 
+
+```{r eval=TRUE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+nhanes <- read.csv(url("https://raw.githubusercontent.com/HimesGroup/BMIN503/master/DataFiles/NHANES_2007to2008.csv"), header=TRUE)
+nhanes <- rename(nhanes, id=SEQN, gender=RIAGENDR, age=RIDAGEYR, race=RIDRETH1, education=DMDEDUC2, income=INDHHIN2, health.provider=HUQ040, wheezing=RDQ070, asthma=MCQ010, voc=WTSVOC2Y, fvc=SPXNFVC, fev1=SPXNFEV1) %>%
+    mutate(gender=factor(gender, levels=c(1, 2), labels=c("male", "female"))) %>%
+    mutate(race=factor(race, levels=c(3, 1, 2, 4, 5), labels=c("white", "MexicanAmerican", "Hispanic", "black", "other"))) %>%
+    mutate(asthma=ifelse(asthma %in% c(7,9), NA, ifelse(asthma==2, 0, 1))) %>%
+    filter(!is.na(asthma))
+str(nhanes)
+```
+
+### Correlation
+After inspecting 2D scatter plots of two continuous variables, we may notice a linear trend among them. To quantify such a trend, we can measure correlation. Recall that Pearson correlation is often the default correlation measure, and it is only appropriate for linearly related variables. The closer to |1|, the greater the relationship resembles a perfectly linear one.
+
+```{r eval=TRUE}
+ggplot(data=nhanes, aes(x=fvc, y=fev1)) +
+    geom_point()
+cor(nhanes$fev1, nhanes$fvc, use="complete.obs") #Default method is Pearson
+cor(nhanes$fev1, nhanes$fvc, use="complete.obs", method="spearman") #Rank-based correlation
+
+ggplot(data=nhanes, aes(x=voc, y=fev1)) +
+    geom_point()
+cor(nhanes$fev1, nhanes$voc, use="complete.obs") 
+```
+
+
+### Simulated Data
+We've used simulated data in previous lectures, and here we will describe how to generate random data according to common probability distributions. For normaly distributed variables, we can use `rnorm`, which generates random deviates according to the normal distribution given a mean and standard deviation, while `dnorm` gives the density of the distribution. For binary outcome variables, we can use `rbinom`, which generates variates according to the binomial distribution given _n_ independent experiments with success probability _p_.
+
+If generating random numbers to do a simulation, use `set.seed()` to ensure that the same numbers are generated for a call. 
+```{r, eval=TRUE}
+rnorm(4)
+set.seed(1234)
+rnorm(4)
+rnorm(4)
+set.seed(1234)
+rnorm(4) #The same "random" data as above is output
+```
+
+Let's get some points that are randomly drawn from a normal distribution.
+```{r, eval=TRUE}
+#Randomly distributed data
+x.vals <- seq(-5, 5, 0.01)
+s.data <- 2*x.vals + rnorm(length(x.vals), 0, 4) #Random normal distribution
+df <- data.frame(x=x.vals, s=s.data)
+ggplot() +
+    aes(s.data) +
+    geom_histogram(aes(y=..density..), binwidth=1, color="black", fill="darkgrey") +
+    stat_function(fun = dnorm, color="red", args = list(mean=mean(s.data), sd=sd(s.data)))
+```
+
+We can use `rnorm` to simulate dependent variables in a linear model. Say we are interested in simulating a model where outcome $y$ depends on variable $x$ subject to some noise $\epsilon$:
+
+$$y = \beta_{0} + \beta_{1}x + \epsilon$$
+
+where $\epsilon \sim \mathcal{N}(0,2^{2})$, $x \sim \mathcal{N}(0,1^{2})$, $\beta_{0}=0.5$, and $\beta_{1}=2$.
+```{r, eval=TRUE}
+set.seed(1234)
+x.normal <- rnorm(1000)
+e <- rnorm(1000, 0, 2)
+y.lin <- 0.5 + 2*x.normal + e
+df <- data.frame(x=x.normal, y=y.lin)
+
+ggplot(df, aes(x=x, y=y)) +
+    geom_point(color="blue") 
+```
+
+If x were a binary variable, like gender, we could simulate it using `rbinom`, which corresponds to the binomial distribution.
+```{r, eval=TRUE}
+x.binomial <- rbinom(1000, 1, 0.5)
+y.linb <- 10 + 3*x.binomial + e
+dfb <- data.frame(x=x.binomial, y=y.linb)
+
+ggplot(dfb, aes(x=factor(x), y=y)) +
+    geom_boxplot(color="black", fill="darkgreen")
+```
+
+More generally, random data can be generated with `sample`, which takes a set of values and randomly draws from them according to other parameters set in the function.
+```{r, eval=TRUE}
+sample(1:20, 5) #Sample without replacement
+sample(1:20, 5)
+sample(1:10) #Permutation
+sample(1:10)
+sample(1:5, 5, replace=TRUE) #Sample with replacement
+sample(1:5, 5, replace=TRUE)
+set.seed(1234) #Recall that set.seed can be used to get same output
+sample(1:5, 5, replace=TRUE)
+set.seed(1234)
+sample(1:5, 5, replace=TRUE)
+```
+
+
+### Linear Models
+The most common function used to fit linear models, where the outcome is a continuous variable, in R is `lm`. The summary output is retrieved with `summary`. Let's first review our simulated data that we know will fit a linear model nicely.
+
+```{r eval=TRUE}
+test.fit <- lm(y.lin ~ x.normal)
+summary(test.fit)
+coef(test.fit) #We recover the intercept and coefficient for x that are expected
+confint(test.fit) #Confidence intervals for fit
+
+ggplot(df, aes(x=x, y=y)) +
+    geom_point(color="blue") + 
+    geom_smooth(method = "lm", color="red")
+
+test.fit <- lm(y.linb ~ x.binomial)
+summary(test.fit)
+coef(test.fit) #We recover the intercept and coefficient for x that are expected
+confint(test.fit) #Confidence intervals for fit
+```
+
+Based on our previous fev1 vs. fvc plot and correlation measures, we know a linear model is appropriate to model the relationship between them. 
+```{r eval=TRUE}
+fev1.lm.fit <- lm(fev1 ~ fvc, data=nhanes)
+fev1.lm.fit
+summary.fev1.lm.fit <- summary.lm(fev1.lm.fit) #Summary of results
+summary.fev1.lm.fit
+names(summary.fev1.lm.fit) #We can retrieve output from summary statistics for model fit
+summary.fev1.lm.fit$adj.r.squared
+confint(fev1.lm.fit) #Confidence intervals for fit
+
+ggplot(nhanes, aes(x=fvc, y=fev1)) +
+    geom_point(color="blue") + 
+    geom_smooth(method = "lm", color="red")
+```
+
+What about other demographic variables? 
+```{r eval=TRUE}
+ggplot(nhanes, aes(x=age, y=fev1)) +
+    geom_point(color="blue")
+
+ggplot(nhanes, aes(x=gender, y=fev1)) +
+    geom_boxplot()
+
+ggplot(nhanes, aes(x=race, y=fev1)) +
+    geom_boxplot()
+
+summary((lm(fev1~age, data=nhanes)))
+summary((lm(fev1~gender, data=nhanes)))
+summary((lm(fev1~race, data=nhanes)))
+```
+
+We might try a combined model to see whether the slope of fvc changes by gender, or whether there is an interaction between fvc and gender.
+```{r eval=TRUE}
+summary.lm(lm(fev1 ~ fvc + gender, data=nhanes))
+summary.lm(lm(fev1 ~ fvc + gender + fvc:gender, data=nhanes))
+```
+
+
+### Logistic Regression Models
+To fit a model to a binary outcome, we can use the `glm` function with the _binomial_ family as the type of function to be used for the fit. The summary output is retrieved with `summary`. We'll use the NHANES dataset with asthma as a binary outcome to illustrate these models. An option to test univariate relationships with dependent categorical variables is a Pearson's Chi-square test, another is a logistic regression model.
+```{r eval=TRUE}
+ggplot(data=nhanes, aes(x=factor(asthma), fill=gender)) +
+    geom_bar(position="fill")
+
+ggplot(data=nhanes, aes(x=factor(asthma), fill=race)) +
+    geom_bar(position="fill")
+
+ggplot(data=nhanes, aes(x=factor(asthma), fill=race)) +
+    geom_bar(position="dodge")
+
+chisq.test(table(nhanes$asthma, nhanes$gender)) 
+summary((glm(asthma~gender, data=nhanes, family=binomial())))
+exp(coef(glm(asthma~gender, data=nhanes, family=binomial()))) #Odds ratios
+chisq.test(table(nhanes$asthma, nhanes$race))
+summary((glm(asthma~race, data=nhanes, family=binomial())))
+```
+
+To test for univariable association with dependent continuous variables a logistic regression with a single independent predictor can be used.
+```{r eval=TRUE}
+ggplot(data=nhanes, aes(x=factor(asthma), y=fev1)) +
+    geom_boxplot(color="black", fill="darkblue")
+
+ggplot(data=nhanes, aes(x=factor(asthma), y=voc)) +
+    geom_boxplot(color="black", fill="darkblue")
+
+summary((glm(asthma~fev1, data=nhanes, family=binomial())))
+summary((glm(asthma~voc, data=nhanes, family=binomial())))
+```
+
+
+We might try a combined model to see whether variable significance changes after adjusting for other variables.
+```{r eval=TRUE}
+asthma.fit <- glm(asthma ~ fev1 + age + gender + race, data=nhanes, family=binomial())
+summary(asthma.fit)
+exp(coef(asthma.fit)) #Odds ratios.
+confint(asthma.fit) #Confidence intervals for fit
+exp(cbind(OR=coef(asthma.fit), CI=confint(asthma.fit))) #OR and 95%CI
+```
+
+With real data, identifying significant predictors is not always straightforward. Doing a careful exploratory analysis can help you identify potential relationships that are interesting to explore further. In some cases, the relationships are striking and remain no matter how you analyze data, and thus, it is clearer that your result is significant. Remember though, you will have measured an association and not a causal relationship.
+
